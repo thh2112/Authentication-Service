@@ -5,6 +5,7 @@ import { USER_STATUS } from 'src/shared/constant';
 import { generateUnauthorizedResult } from 'src/shared/utils/operation-result';
 import { HashingService } from 'src/shared/services/hashing.service';
 import { extractPublicUserInfo } from '../user/user.model';
+import * as crypto from 'crypto';
 
 @Injectable()
 export class AuthService {
@@ -39,5 +40,13 @@ export class AuthService {
       success: true,
       data: extractPublicUserInfo(foundUserByEmail),
     };
+  }
+
+  public generateOtpToken(length = 32): string {
+    return crypto
+      .randomBytes(length)
+      .toString('base64')
+      .replace(/[^a-zA-Z0-9]/g, '')
+      .slice(0, length);
   }
 }

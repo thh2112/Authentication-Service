@@ -20,6 +20,13 @@ export enum ENV_KEY {
   JWT_SECRET = 'JWT_SECRET',
   JWT_ACCESS_TOKEN_EXPIRES_IN = 'JWT_ACCESS_TOKEN_EXPIRES_IN',
   JWT_REFRESH_TOKEN_EXPIRES_IN = 'JWT_REFRESH_TOKEN_EXPIRES_IN',
+  // mail
+  SMTP_HOST = 'SMTP_HOST',
+  SMTP_PORT = 'SMTP_PORT',
+  SMTP_SECURE = 'SMTP_SECURE',
+  SMTP_USERNAME = 'SMTP_USERNAME',
+  SMTP_PASSWORD = 'SMTP_PASSWORD',
+  APP_PUBLIC_URL = 'APP_PUBLIC_URL',
 }
 
 export const INJECTION_TOKEN = {
@@ -60,4 +67,6 @@ export enum ERR_CODE {
   NOT_FOUND = 'not_found',
   ALREADY_EXISTS = 'already_exists',
   UNPROCESSABLE_ENTITY = 'unprocessable_entity',
+  INVALID_TOKEN = 'invalid_token',
+  USER_ALREADY_VERIFIED = 'user_already_verified',
 }

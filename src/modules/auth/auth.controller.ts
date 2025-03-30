@@ -1,20 +1,25 @@
+import { MailerService } from '@nestjs-modules/mailer';
 import { Body, Controller, Get, Post, UseGuards } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import { JwtService } from '@nestjs/jwt';
+import * as ejs from 'ejs';
+import { readFileSync } from 'fs';
+import { ENV_KEY, ERR_CODE, ROLE_TYPE, USER_STATUS } from 'src/shared/constant';
 import { CurrentUser } from 'src/shared/decorators/user.decorator';
+import { JwtAuthGuard } from 'src/shared/guards/jwt-auth.guard';
 import { LocalAuthGuard } from 'src/shared/guards/local-auth.guard';
 import { HashingService } from 'src/shared/services/hashing.service';
+import { HttpResponse } from 'src/shared/type';
 import {
+  generateBadRequestResult,
   generateConflictResult,
   generateNotFoundResult,
 } from 'src/shared/utils/operation-result';
+import { RoleService } from '../role/role.service';
 import { extractPublicUserInfo, User } from '../user/user.model';
 import { UserService } from '../user/user.service';
 import { RegisterUserDTO } from './auth.dto';
-import { RoleService } from '../role/role.service';
-import { ENV_KEY, ROLE_TYPE, USER_STATUS } from 'src/shared/constant';
-import { JwtService } from '@nestjs/jwt';
-import { ConfigService } from '@nestjs/config';
-import { HttpResponse } from 'src/shared/type';
-import { JwtAuthGuard } from 'src/shared/guards/jwt-auth.guard';
+import { AuthService } from './auth.service';
 
 @Controller('auth')
 export class AuthController {
@@ -24,6 +29,8 @@ export class AuthController {
     protected hashingService: HashingService,
     protected jwtService: JwtService,
     protected configService: ConfigService,
+    protected mailerService: MailerService,
+    protected authService: AuthService,
   ) {}
 
   @Post('register')
@@ -42,11 +49,28 @@ export class AuthController {
 
     const hashedPassword = await this.hashingService.hash(password);
 
-    await this.userService.create({
+    const registeredUser = await this.userService.create({
       ...dto,
       password: hashedPassword,
       isVerify: false,
       roleId: role.id,
+    });
+
+    const token = this.authService.generateOtpToken();
+
+    const template = readFileSync('templates/verify-email.ejs', 'utf-8');
+    const compiledTemplate = ejs.render(template, {
+      verifyUrl: `${this.configService.getOrThrow(ENV_KEY.APP_PUBLIC_URL)}/verify-email?token=${token}`,
+    });
+
+    await this.mailerService.sendMail({
+      to: registeredUser.email,
+      subject: 'Verify your email',
+      html: compiledTemplate,
+    });
+
+    await this.userService.updateByID(registeredUser.id, {
+      token,
     });
 
     return {
@@ -107,6 +131,42 @@ export class AuthController {
     return {
       success: true,
       data: extractPublicUserInfo(foundUser),
+    };
+  }
+
+  @Post('verify-email')
+  public async verifyEmail(
+    @Body('token') token: string,
+  ): Promise<HttpResponse> {
+    const user = await this.userService.findOne({
+      token,
+      status: USER_STATUS.INACTIVE,
+    });
+
+    if (!user) {
+      return generateBadRequestResult(
+        'invalid token',
+        null,
+        ERR_CODE.INVALID_TOKEN,
+      );
+    }
+
+    if (user.isVerify) {
+      return generateBadRequestResult(
+        'user already verified',
+        null,
+        ERR_CODE.USER_ALREADY_VERIFIED,
+      );
+    }
+
+    await this.userService.updateByID(user.id, {
+      isVerify: true,
+      token: null,
+      status: USER_STATUS.ACTIVE,
+    });
+
+    return {
+      success: true,
     };
   }
 }

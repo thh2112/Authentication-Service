@@ -40,8 +40,11 @@ export class User extends Audit {
   @Column({ name: 'is_verify' })
   public isVerify: boolean;
 
-  @Column({ name: 'is_active', default: USER_STATUS.INACTIVE })
+  @Column({ name: 'active', default: USER_STATUS.INACTIVE })
   public status: USER_STATUS;
+
+  @Column({ nullable: true })
+  public token: string;
 
   @Column({ type: 'jsonb', nullable: true })
   public metadata: Record<string, any>;

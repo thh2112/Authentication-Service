@@ -1,16 +1,17 @@
 import { Module } from '@nestjs/common';
-import { AppController } from './app.controller';
-import { AppService } from './app.service';
 import { ConfigModule, ConfigService } from '@nestjs/config';
-import { CacheModule } from './modules/cache/cache.module';
 import { EventEmitterModule } from '@nestjs/event-emitter';
+import { JwtModule } from '@nestjs/jwt';
 import { ScheduleModule } from '@nestjs/schedule';
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { UsersModule } from './modules/user/user.module';
-import { RoleModule } from './modules/role/role.module';
+import { AppController } from './app.controller';
+import { AppService } from './app.service';
 import { AuthModule } from './modules/auth/auth.module';
+import { CacheModule } from './modules/cache/cache.module';
+import { MailModule } from './modules/mail/mail.module';
+import { RoleModule } from './modules/role/role.module';
 import { SharedModule } from './modules/shared/shared.module';
-import { JwtModule } from '@nestjs/jwt';
+import { UsersModule } from './modules/user/user.module';
 
 @Module({
   imports: [
@@ -40,13 +41,10 @@ import { JwtModule } from '@nestjs/jwt';
       useFactory: (configService: ConfigService) => ({
         global: true,
         secret: configService.getOrThrow('JWT_SECRET'),
-        // signOptions: {
-        //   audience: configService.getOrThrow('JWT_AUDIENCE'),
-        //   issuer: configService.getOrThrow('JWT_ISSUER'),
-        // },
       }),
       inject: [ConfigService],
     }),
+    MailModule,
     CacheModule,
     UsersModule,
     RoleModule,
