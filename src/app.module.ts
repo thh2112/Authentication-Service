@@ -9,6 +9,8 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { UsersModule } from './modules/user/user.module';
 import { RoleModule } from './modules/role/role.module';
 import { AuthModule } from './modules/auth/auth.module';
+import { SharedModule } from './modules/shared/shared.module';
+import { JwtModule } from '@nestjs/jwt';
 
 @Module({
   imports: [
@@ -34,10 +36,22 @@ import { AuthModule } from './modules/auth/auth.module';
       }),
       inject: [ConfigService],
     }),
+    JwtModule.registerAsync({
+      useFactory: (configService: ConfigService) => ({
+        global: true,
+        secret: configService.getOrThrow('JWT_SECRET'),
+        // signOptions: {
+        //   audience: configService.getOrThrow('JWT_AUDIENCE'),
+        //   issuer: configService.getOrThrow('JWT_ISSUER'),
+        // },
+      }),
+      inject: [ConfigService],
+    }),
     CacheModule,
     UsersModule,
     RoleModule,
     AuthModule,
+    SharedModule,
   ],
   controllers: [AppController],
   providers: [AppService],

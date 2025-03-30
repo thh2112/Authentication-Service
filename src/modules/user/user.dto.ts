@@ -1,3 +1,4 @@
+import { PartialType } from '@nestjs/mapped-types';
 import {
   IsEmail,
   IsOptional,
@@ -25,5 +26,9 @@ export class CreateUserDTO {
   phoneNumber: string;
 
   @IsEmail()
+  @MinLength(3)
+  @MaxLength(50)
   email: string;
 }
+
+export class UpdateUserDTO extends PartialType(CreateUserDTO) {}
