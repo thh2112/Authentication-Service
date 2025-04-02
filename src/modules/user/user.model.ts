@@ -38,7 +38,7 @@ export class User extends Audit {
   public phoneNumber: string;
 
   @Column({ name: 'is_verify' })
-  public isVerify: boolean;
+  public isVerified: boolean;
 
   @Column({ name: 'active', default: USER_STATUS.INACTIVE })
   public status: USER_STATUS;

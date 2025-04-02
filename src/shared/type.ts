@@ -39,3 +39,8 @@ export interface UserAuthInfo {
   status: USER_STATUS;
   phoneNumber: string;
 }
+
+export type AuthenticatedUser = UserAuthInfo & {
+  jit: string;
+  iat: number;
+};

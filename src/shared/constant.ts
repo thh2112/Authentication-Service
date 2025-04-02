@@ -69,4 +69,8 @@ export enum ERR_CODE {
   UNPROCESSABLE_ENTITY = 'unprocessable_entity',
   INVALID_TOKEN = 'invalid_token',
   USER_ALREADY_VERIFIED = 'user_already_verified',
+  TOKEN_BLACKLISTED = 'token_blacklisted',
+  PERMISSION_DENIED = 'permission_denied',
+  PASSWORD_NOT_MATCHED = 'password_not_matched',
+  TOKEN_REVOKED = 'token_revoked',
 }

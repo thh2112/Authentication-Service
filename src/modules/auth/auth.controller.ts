@@ -1,29 +1,46 @@
 import { MailerService } from '@nestjs-modules/mailer';
-import { Body, Controller, Get, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Inject, Post, UseGuards } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import * as ejs from 'ejs';
 import { readFileSync } from 'fs';
-import { ENV_KEY, ERR_CODE, ROLE_TYPE, USER_STATUS } from 'src/shared/constant';
+import {
+  ENV_KEY,
+  ERR_CODE,
+  INJECTION_TOKEN,
+  ROLE_TYPE,
+  USER_STATUS,
+} from 'src/shared/constant';
 import { CurrentUser } from 'src/shared/decorators/user.decorator';
 import { JwtAuthGuard } from 'src/shared/guards/jwt-auth.guard';
+import { JwtAuthenticatedTokenGuard } from 'src/shared/guards/jwt-authenticated-token.guard';
 import { LocalAuthGuard } from 'src/shared/guards/local-auth.guard';
+import {
+  getBlackListTokenCacheKey,
+  getRevokedTokenThresholdCacheKey,
+} from 'src/shared/helpers/cache-key-helper';
 import { HashingService } from 'src/shared/services/hashing.service';
-import { HttpResponse } from 'src/shared/type';
+import { AuthenticatedUser, HttpResponse } from 'src/shared/type';
 import {
   generateBadRequestResult,
   generateConflictResult,
   generateNotFoundResult,
 } from 'src/shared/utils/operation-result';
+import { v4 as uuidv4 } from 'uuid';
+import { RedisService } from '../cache/redis.service';
 import { RoleService } from '../role/role.service';
 import { extractPublicUserInfo, User } from '../user/user.model';
 import { UserService } from '../user/user.service';
-import { RegisterUserDTO } from './auth.dto';
+import { ChangePasswordDTO, RegisterUserDTO } from './auth.dto';
 import { AuthService } from './auth.service';
+import * as dayjs from 'dayjs';
 
 @Controller('auth')
 export class AuthController {
   constructor(
+    @Inject(INJECTION_TOKEN.REDIS_SERVICE)
+    protected cacheService: RedisService,
+
     protected userService: UserService,
     protected roleService: RoleService,
     protected hashingService: HashingService,
@@ -52,7 +69,7 @@ export class AuthController {
     const registeredUser = await this.userService.create({
       ...dto,
       password: hashedPassword,
-      isVerify: false,
+      isVerified: false,
       roleId: role.id,
     });
 
@@ -86,6 +103,8 @@ export class AuthController {
       username: user.username,
       email: user.email,
       role: user.roleId,
+      jit: uuidv4(),
+      iat: dayjs().unix(),
     };
 
     const accessToken = this.jwtService.sign(payload, {
@@ -111,7 +130,7 @@ export class AuthController {
     };
   }
 
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, JwtAuthenticatedTokenGuard)
   @Get('me')
   public async viewProfile(
     @CurrentUser() user: Partial<User>,
@@ -151,7 +170,7 @@ export class AuthController {
       );
     }
 
-    if (user.isVerify) {
+    if (user.isVerified) {
       return generateBadRequestResult(
         'user already verified',
         null,
@@ -160,10 +179,71 @@ export class AuthController {
     }
 
     await this.userService.updateByID(user.id, {
-      isVerify: true,
+      isVerified: true,
       token: null,
       status: USER_STATUS.ACTIVE,
     });
+
+    return {
+      success: true,
+    };
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Post('logout')
+  public async logout(
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<HttpResponse> {
+    const cacheKey = getBlackListTokenCacheKey(user.id, user.jit);
+
+    this.cacheService.set(cacheKey, 1);
+
+    return {
+      success: true,
+    };
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Post('change-password')
+  public async changePassword(
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() dto: ChangePasswordDTO,
+  ): Promise<HttpResponse> {
+    const foundUser = await this.userService.findOne({
+      id: user.id,
+    });
+
+    if (!foundUser) {
+      return generateNotFoundResult('user not found');
+    }
+
+    if (foundUser.status !== USER_STATUS.ACTIVE) {
+      return generateConflictResult(
+        'permission denied',
+        ERR_CODE.PERMISSION_DENIED,
+      );
+    }
+
+    const isValidPassword = this.hashingService.compare(
+      dto.oldPassword,
+      foundUser.password,
+    );
+
+    if (!isValidPassword) {
+      return generateBadRequestResult(
+        'password not matched',
+        ERR_CODE.PASSWORD_NOT_MATCHED,
+      );
+    }
+
+    const passwordHash = await this.hashingService.hash(dto.password);
+
+    await this.userService.updateByID(user.id, {
+      password: passwordHash,
+    });
+
+    const cacheKey = getRevokedTokenThresholdCacheKey(user.id);
+    this.cacheService.set(cacheKey, user.iat);
 
     return {
       success: true,
