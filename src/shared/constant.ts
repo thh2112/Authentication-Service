@@ -74,3 +74,10 @@ export enum ERR_CODE {
   PASSWORD_NOT_MATCHED = 'password_not_matched',
   TOKEN_REVOKED = 'token_revoked',
 }
+
+export enum METADATA_KEY {
+  MAX_CONCURRENCY_CALL = 'max_concurrency_call',
+  RATE_LIMITING = 'rate_limiting',
+}
+
+export const DEFAULT_MAX_CONCURRENT_CALL = 1;

@@ -1,4 +1,9 @@
-import { IsStrongPassword, MaxLength, MinLength } from 'class-validator';
+import {
+  IsEmail,
+  IsStrongPassword,
+  MaxLength,
+  MinLength,
+} from 'class-validator';
 import { CreateUserDTO } from '../user/user.dto';
 
 export class RegisterUserDTO extends CreateUserDTO {}
@@ -32,4 +37,11 @@ export class ChangePasswordDTO {
     minSymbols: 1,
   })
   password: string;
+}
+
+export class ForgotPasswordDTO {
+  @IsEmail()
+  @MinLength(1)
+  @MaxLength(50)
+  email: string;
 }

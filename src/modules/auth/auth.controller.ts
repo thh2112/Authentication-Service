@@ -1,5 +1,13 @@
 import { MailerService } from '@nestjs-modules/mailer';
-import { Body, Controller, Get, Inject, Post, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Inject,
+  Post,
+  UseGuards,
+  UseInterceptors,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import * as ejs from 'ejs';
@@ -31,9 +39,19 @@ import { RedisService } from '../cache/redis.service';
 import { RoleService } from '../role/role.service';
 import { extractPublicUserInfo, User } from '../user/user.model';
 import { UserService } from '../user/user.service';
-import { ChangePasswordDTO, RegisterUserDTO } from './auth.dto';
+import {
+  ChangePasswordDTO,
+  ForgotPasswordDTO,
+  RegisterUserDTO,
+} from './auth.dto';
 import { AuthService } from './auth.service';
 import * as dayjs from 'dayjs';
+import { generatePassword } from 'src/shared/utils/string.util';
+import {
+  CallQueueInterceptor,
+  MaxConcurrencyCall,
+} from 'src/shared/interceptors/call-queue.interceptor';
+import { ApplyRateLimiting } from 'src/shared/interceptors/rate-limiting.interceptor';
 
 @Controller('auth')
 export class AuthController {
@@ -244,6 +262,47 @@ export class AuthController {
 
     const cacheKey = getRevokedTokenThresholdCacheKey(user.id);
     this.cacheService.set(cacheKey, user.iat);
+
+    return {
+      success: true,
+    };
+  }
+
+  @ApplyRateLimiting(2)
+  @MaxConcurrencyCall(5)
+  @UseInterceptors(CallQueueInterceptor)
+  @Post('forgot-password')
+  public async forgotPassword(
+    @Body() dto: ForgotPasswordDTO,
+  ): Promise<HttpResponse> {
+    const foundUser = await this.userService.findOne({
+      email: dto.email,
+      status: USER_STATUS.ACTIVE,
+    });
+
+    if (!foundUser) {
+      return generateNotFoundResult('user not found');
+    }
+
+    const newPassword = generatePassword();
+
+    const template = readFileSync('templates/forgot-password.ejs', 'utf-8');
+    const compiledTemplate = ejs.render(template, {
+      username: foundUser.username,
+      newPassword,
+    });
+
+    await this.mailerService.sendMail({
+      to: dto.email,
+      subject: 'Reset Password',
+      html: compiledTemplate,
+    });
+
+    const hashedPassword = await this.hashingService.hash(newPassword);
+
+    await this.userService.updateByID(foundUser.id, {
+      password: hashedPassword,
+    });
 
     return {
       success: true,
